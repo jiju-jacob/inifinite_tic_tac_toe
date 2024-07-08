@@ -31,7 +31,7 @@ class _GamePageState extends State<GamePage> {
 
   void makeMove(int index) {
     moves.add(index); // add the index of the move to the moves list
-    if (moves.length > 6) {
+    if (moves.length > 5) {
       occupied[moves[0]] = ""; // remove the oldest move
       moves.removeAt(0); // remove the oldest move from the moves list
     }
