@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'winning_line_painter.dart';
+
 class GamePage extends StatefulWidget {
   const GamePage({super.key});
 
@@ -12,10 +14,14 @@ class _GamePageState extends State<GamePage> {
   static const String playerY = "O";
 
   late String currentPlayer;
-  late bool gameEnd;
   late List<String> occupied;
   late List<int> moves;
-
+  List<int>?
+      winningLine; // value in winning line determines the winner position
+  final List<GlobalKey> keys = List.generate(9, (index) => GlobalKey());
+  Offset? _startOffset;
+  Offset? _endOffset;
+  final GlobalKey gridKey = GlobalKey();
   @override
   void initState() {
     initializeGame();
@@ -24,9 +30,11 @@ class _GamePageState extends State<GamePage> {
 
   void initializeGame() {
     currentPlayer = playerX;
-    gameEnd = false;
     occupied = ["", "", "", "", "", "", "", "", ""]; //9 empty places
     moves = [];
+    winningLine = null;
+    _startOffset = null;
+    _endOffset = null;
   }
 
   void makeMove(int index) {
@@ -81,21 +89,32 @@ class _GamePageState extends State<GamePage> {
       height: MediaQuery.of(context).size.height / 2,
       width: MediaQuery.of(context).size.height / 2,
       margin: const EdgeInsets.all(8),
-      child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3),
-          itemCount: 9,
-          itemBuilder: (context, int index) {
-            return _box(index);
-          }),
+      child: Stack(
+        children: [
+          GridView.builder(
+              key: gridKey,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3),
+              itemCount: 9,
+              itemBuilder: (context, int index) {
+                return _box(index);
+              }),
+          if (_startOffset != null && _endOffset != null)
+            CustomPaint(
+              painter: LinePainter(_startOffset!, _endOffset!),
+              child: Container(),
+            ),
+        ],
+      ),
     );
   }
 
   Widget _box(int index) {
     return InkWell(
+      key: keys[index],
       onTap: () {
         //on click of box
-        if (gameEnd || occupied[index].isNotEmpty) {
+        if (winningLine != null || occupied[index].isNotEmpty) {
           //Return if game already ended or box already clicked
           return;
         }
@@ -103,8 +122,10 @@ class _GamePageState extends State<GamePage> {
         setState(() {
           occupied[index] = currentPlayer;
           changeTurn();
-          makeMove(index);
           checkForWinner();
+          if (winningLine == null) {
+            makeMove(index);
+          }
         });
       },
       child: Container(
@@ -165,29 +186,37 @@ class _GamePageState extends State<GamePage> {
             playerPosition0 == playerPosition2) {
           //all equal means player won
           showGameOverMessage("Player $playerPosition0 Won");
-          gameEnd = true;
+          winningLine = winningPos;
+          _setLineEndpoints(winningLine![0]);
+          _setLineEndpoints(winningLine![2]);
           return;
         }
       }
     }
   }
 
-  checkForDraw() {
-    if (gameEnd) {
-      return;
-    }
-    bool draw = true;
-    for (var occupiedPlayer in occupied) {
-      if (occupiedPlayer.isEmpty) {
-        //at least one is empty not all are filled
-        draw = false;
-      }
-    }
+  void _setLineEndpoints(int index) {
+    final RenderBox itemRenderBox =
+        keys[index].currentContext!.findRenderObject() as RenderBox;
+    final Offset itemPosition = itemRenderBox.localToGlobal(Offset.zero);
 
-    if (draw) {
-      showGameOverMessage("Draw");
-      gameEnd = true;
-    }
+    final RenderBox gridRenderBox =
+        gridKey.currentContext!.findRenderObject() as RenderBox;
+    final Offset gridPosition = gridRenderBox.localToGlobal(Offset.zero);
+
+    final Offset relativePosition = itemPosition - gridPosition;
+
+    final Size size = itemRenderBox.size;
+    final Offset center =
+        relativePosition + Offset(size.width / 2, size.height / 2);
+
+    setState(() {
+      if (_startOffset == null) {
+        _startOffset = center;
+      } else {
+        _endOffset = center;
+      }
+    });
   }
 
   showGameOverMessage(String message) {
